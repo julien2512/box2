@@ -6,7 +6,6 @@ import (
 	"time"
 	"image/color"
 //	"fmt"
-	"sort"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -34,6 +33,14 @@ type Circle struct {
 	circle *canvas.Circle
 }
 
+func (c *Circle) Color(color color.Color, wb float32, wc color.Color) {
+	if c.circle != nil {
+		c.circle.FillColor = color
+		c.circle.StrokeWidth = wb
+		c.circle.StrokeColor = wc
+	}
+}
+
 func (c *Circle) Refresh() {
 	c.x = c.body.GetPosition().X
 	c.y = c.body.GetPosition().Y
@@ -48,25 +55,25 @@ func (c *Circle) onTypedKey(ev *fyne.KeyEvent) {
 
 func (c *Circle) onKeyUp(key *fyne.KeyEvent) {
 	if key.Name == c.leftKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(c.pad,0),true)
+		//c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(c.pad,0),true)
 	} else if key.Name == c.rightKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(-c.pad,0),true)
+		//c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(-c.pad,0),true)
 	} else if key.Name == c.upKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(0,c.pad),true)
+		//c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(0,c.pad),true)
 	} else if key.Name == c.downKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(0,-c.pad),true)
+		//c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(0,-c.pad),true)
 	}
 }
 
 func (c *Circle) onKeyDown(key *fyne.KeyEvent) {
 	if key.Name == c.leftKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(-c.pad,0),true)
+		c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(-c.pad,0),true)
 	} else if key.Name == c.rightKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(c.pad,0),true)
+		c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(c.pad,0),true)
 	} else if key.Name == c.upKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(0,-c.pad),true)
+		c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(0,-c.pad),true)
 	} else if key.Name == c.downKey {
-		c.body.ApplyForceToCenter(box2d.MakeB2Vec2(0,c.pad),true)
+		c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(0,c.pad),true)
 	}
 }
 
@@ -99,6 +106,9 @@ type box struct {
 	score2 int
 
 	circle *Circle
+	circle2 *Circle
+
+	circles []*Circle
 
 	output  *widget.RichText
 	window  fyne.Window
@@ -109,20 +119,34 @@ type box struct {
 
 func (c *box) onTypedKey(ev *fyne.KeyEvent) {
 	c.circle.onTypedKey(ev)
+	for i:=0;i<len(c.circles);i++ { 
+		c.circles[i].onTypedKey(ev)
+	}
 }
 
-func (c * box) Refresh() {
+func (c *box) Refresh() {
 	if (c.circle!=nil) {
 		c.circle.Refresh()
+	}
+	for i:=0;i<len(c.circles);i++ {
+		c.circles[i].Refresh()
 	}
 }
 
 func (c *box) onKeyUp(key *fyne.KeyEvent) {
-	c.circle.onKeyUp(key)
+	if (c.circle2!=nil) {
+		c.circle2.onKeyUp(key)
+	}
+	for i:=0;i<len(c.circles);i++ {
+		c.circles[i].onKeyUp(key)
+	}
 }
 
 func (c *box) onKeyDown(key *fyne.KeyEvent) {
 	c.circle.onKeyDown(key)
+	for i:=0;i<len(c.circles);i++ {
+		c.circles[i].onKeyDown(key)
+	}
 }
 
 type GameLayout struct {
@@ -159,8 +183,6 @@ func (c *box) loadUI(app fyne.App) {
 	// Construct a world object, which will hold and simulate the rigid bodies.
 	world := box2d.MakeB2World(gravity)
 
-	characters := make(map[string]*box2d.B2Body)
-
 	// Ground body
 	{
 		bd := box2d.MakeB2BodyDef()
@@ -169,7 +191,6 @@ func (c *box) loadUI(app fyne.App) {
 		shape := box2d.MakeB2EdgeShape()
 		shape.Set(box2d.MakeB2Vec2(0.0, 300.0), box2d.MakeB2Vec2(600.0, 300.0))
 		ground.CreateFixture(&shape, 0.0)
-		characters["00_ground"] = ground
 	}
 	{
 		bd := box2d.MakeB2BodyDef()
@@ -178,7 +199,6 @@ func (c *box) loadUI(app fyne.App) {
 		shape := box2d.MakeB2EdgeShape()
 		shape.Set(box2d.MakeB2Vec2(600.0, 300.0), box2d.MakeB2Vec2(600.0, 0.0))
 		ground.CreateFixture(&shape, 0.0)
-		characters["01_ground"] = ground
 	}
 	{
 		bd := box2d.MakeB2BodyDef()
@@ -187,7 +207,6 @@ func (c *box) loadUI(app fyne.App) {
 		shape := box2d.MakeB2EdgeShape()
 		shape.Set(box2d.MakeB2Vec2(600.0, 0.0), box2d.MakeB2Vec2(0.0, 0.0))
 		ground.CreateFixture(&shape, 0.0)
-		characters["02_ground"] = ground
 	}
 	{
 		bd := box2d.MakeB2BodyDef()
@@ -196,8 +215,14 @@ func (c *box) loadUI(app fyne.App) {
 		shape := box2d.MakeB2EdgeShape()
 		shape.Set(box2d.MakeB2Vec2(0.0, 0.0), box2d.MakeB2Vec2(0.0, 300.0))
 		ground.CreateFixture(&shape, 0.0)
-		characters["03_ground"] = ground
 	}
+
+	// setup colors
+	//gray := color.Gray{Y: 0x99}
+	red  := color.NRGBA{R: 0xff, G: 0x33, B: 0x33, A: 0xff}
+	//blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
+	//yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
+	//green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
 
 	// Circle character
 	{
@@ -215,29 +240,54 @@ func (c *box) loadUI(app fyne.App) {
 		fd := box2d.MakeB2FixtureDef()
 		fd.Shape = &shape
 		fd.Density = 20.0
+		fd.Restitution = 0.97
 		body.CreateFixtureFromDef(&fd)
 
 		c.circle = NewCircle(10,30.0,50.0,body)
 		c.circle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
 		c.game.Add(c.circle.circle)
+		c.circle.Color(red,0,red)
 		c.circle.Refresh()
-		characters["01_circle"] = c.circle.body
 		c.circle.pad = 3000000.0
 	}
+
+	// Circles character
+	if (c.circles == nil) {
+		c.circles = make([]*Circle,0)
+	}
+	for i:=0;i<10;i++ {
+		bd := box2d.MakeB2BodyDef()
+		bd.Position.Set(50.0+20.0*float64(i), 50.0)
+		bd.Type = box2d.B2BodyType.B2_dynamicBody
+		bd.FixedRotation = true
+		bd.AllowSleep = false
+
+		body := world.CreateBody(&bd)
+
+		shape := box2d.MakeB2CircleShape()
+		shape.M_radius = 10
+
+		fd := box2d.MakeB2FixtureDef()
+		fd.Shape = &shape
+		fd.Density = 20.0
+		fd.Restitution = 0.97
+		body.CreateFixtureFromDef(&fd)
+
+		circle := NewCircle(10,130.0+20*float64(i),50.0,body)
+		c.game.Add(circle.circle)
+		circle.Refresh()
+		circle.pad = 3000000.0
+
+		c.circles = append(c.circles,circle)
+	}
+
 
 	// Prepare for simulation. Typically we use a time step of 1/60 of a
 	// second (60Hz) and 10 iterations. This provides a high quality simulation
 	// in most game scenarios.
-	timeStep := 1.0 / 60.0
+	timeStep := 1.0 / 200.0
 	velocityIterations := 8
 	positionIterations := 3
-
-	characterNames := make([]string, 0)
-	for k, _ := range characters {
-		characterNames = append(characterNames, k)
-	}
-
-	sort.Strings(characterNames)
 
 	deskCanvas, ok := c.window.Canvas().(desktop.Canvas)
 	
