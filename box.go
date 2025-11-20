@@ -6,6 +6,7 @@ import (
 	"time"
 	"image/color"
 //	"fmt"
+	"math"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -16,10 +17,45 @@ import (
 	"github.com/ByteArena/box2d"
 )
 
-type Circle struct {
+func MakeCircleBody(world *box2d.B2World,x float64,y float64,r float64) (*box2d.B2Body) {
+	bd := box2d.MakeB2BodyDef()
+	bd.Position.Set(x, y)
+	bd.Type = box2d.B2BodyType.B2_dynamicBody
+	bd.FixedRotation = true
+	bd.AllowSleep = false
+	
+	body := world.CreateBody(&bd)
+	
+	shape := box2d.MakeB2CircleShape()
+	shape.M_radius = r
+	
+	fd := box2d.MakeB2FixtureDef()
+	fd.Shape = &shape
+	fd.Density = 20.0
+	fd.Restitution = 0.97
+	body.CreateFixtureFromDef(&fd)
+	
+	return body
+}
+
+type iPlayer interface {
+	getPad() float64
+	setPad(pad float64)
+
+	Color(color color.Color, wb float32, wc color.Color)
+	Refresh()
+	onTypedKey(ev *fyne.KeyEvent)
+	onKeyUp(key *fyne.KeyEvent)
+	onKeyDown(key *fyne.KeyEvent)
+	CanMove(downKey fyne.KeyName, upKey fyne.KeyName, leftKey fyne.KeyName, rightKey fyne.KeyName)
+	Move(position fyne.Position)
+	getObject() fyne.CanvasObject
+	getBody() *box2d.B2Body
+}
+
+type Player struct {
 	x float64
 	y float64
-	r float64
 
 	pad float64
 
@@ -30,30 +66,42 @@ type Circle struct {
 
 	body *box2d.B2Body
 
-	circle *canvas.Circle
+	object fyne.CanvasObject
 }
 
-func (c *Circle) Color(color color.Color, wb float32, wc color.Color) {
-	if c.circle != nil {
-		c.circle.FillColor = color
-		c.circle.StrokeWidth = wb
-		c.circle.StrokeColor = wc
-	}
+func (c *Player) getBody() *box2d.B2Body {
+	return c.body
 }
 
-func (c *Circle) Refresh() {
+func (c *Player) getObject() fyne.CanvasObject {
+	return c.object
+}
+
+func (c *Player) getPad() float64 {
+	return c.pad
+}
+
+func (c *Player) setPad(pad float64) {
+	c.pad = pad
+}
+
+func (c *Player) Refresh() {
 	c.x = c.body.GetPosition().X
 	c.y = c.body.GetPosition().Y
 
-	c.circle.Move(fyne.NewPos(float32(c.x),float32(c.y)))
-	//c.circle.Refresh()
+	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
 }
 
-func (c *Circle) onTypedKey(ev *fyne.KeyEvent) {
+func (c *Player) Move(position fyne.Position) {
+	c.object.Move(position)
+}
+
+
+func (c *Player) onTypedKey(ev *fyne.KeyEvent) {
 
 }
 
-func (c *Circle) onKeyUp(key *fyne.KeyEvent) {
+func (c *Player) onKeyUp(key *fyne.KeyEvent) {
 	if key.Name == c.leftKey {
 		//c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(c.pad,0),true)
 	} else if key.Name == c.rightKey {
@@ -65,7 +113,7 @@ func (c *Circle) onKeyUp(key *fyne.KeyEvent) {
 	}
 }
 
-func (c *Circle) onKeyDown(key *fyne.KeyEvent) {
+func (c *Player) onKeyDown(key *fyne.KeyEvent) {
 	if key.Name == c.leftKey {
 		c.body.ApplyLinearImpulseToCenter(box2d.MakeB2Vec2(-c.pad,0),true)
 	} else if key.Name == c.rightKey {
@@ -77,23 +125,39 @@ func (c *Circle) onKeyDown(key *fyne.KeyEvent) {
 	}
 }
 
-func (c *Circle) CanMove(downKey fyne.KeyName, upKey fyne.KeyName, leftKey fyne.KeyName, rightKey fyne.KeyName) {
+func (c *Player) CanMove(downKey fyne.KeyName, upKey fyne.KeyName, leftKey fyne.KeyName, rightKey fyne.KeyName) {
 	c.downKey = downKey
 	c.upKey = upKey
 	c.leftKey = leftKey
 	c.rightKey = rightKey
 }
 
-func NewCircle(size float64,xb float64, yb float64, body *box2d.B2Body) *Circle {
+type Circle struct {
+	Player
+	x float64
+	y float64
+	r float64
+}
+
+func (c *Circle) Color(color color.Color, wb float32, wc color.Color) {
+	var circle *canvas.Circle
+	circle = (c.object).(*canvas.Circle)
+	circle.FillColor = color
+	circle.StrokeWidth = wb
+	circle.StrokeColor = wc
+}
+
+func NewCircle(world *box2d.B2World,size float64,xb float64, yb float64) *Circle {
 	circle := &Circle{}
 	circle.pad = 1
 	circle.r = size
 	circle.x = xb
 	circle.y = yb
 
-	circle.circle = canvas.NewCircle(color.Black)
-	circle.circle.Resize(fyne.NewSize(float32(2*size),float32(2*size)))
+	circle.object = canvas.NewCircle(color.Black)
+	circle.object.Resize(fyne.NewSize(float32(2*size),float32(2*size)))
 
+	body := MakeCircleBody(world,xb,yb,size)
 	circle.body = body
 
 	return circle
@@ -105,10 +169,7 @@ type box struct {
 	score1 int
 	score2 int
 
-	circle *Circle
-	circle2 *Circle
-
-	circles []*Circle
+	circles []iPlayer
 
 	output  *widget.RichText
 	window  fyne.Window
@@ -116,61 +177,62 @@ type box struct {
 	world   box2d.B2World
 }
 
+func (c *box) addPlayer(player iPlayer) {
+
+	c.game.Add(player.getObject())
+	if (c.circles == nil) {
+		c.circles = make([]iPlayer,0)
+	}
+	
+	c.circles = append(c.circles,player)
+}
 
 func (c *box) onTypedKey(ev *fyne.KeyEvent) {
-	c.circle.onTypedKey(ev)
 	for i:=0;i<len(c.circles);i++ { 
 		c.circles[i].onTypedKey(ev)
 	}
 }
 
 func (c *box) Refresh() {
-	if (c.circle!=nil) {
-		c.circle.Refresh()
-	}
 	for i:=0;i<len(c.circles);i++ {
 		c.circles[i].Refresh()
 	}
 }
 
 func (c *box) onKeyUp(key *fyne.KeyEvent) {
-	if (c.circle2!=nil) {
-		c.circle2.onKeyUp(key)
-	}
 	for i:=0;i<len(c.circles);i++ {
 		c.circles[i].onKeyUp(key)
 	}
 }
 
 func (c *box) onKeyDown(key *fyne.KeyEvent) {
-	c.circle.onKeyDown(key)
 	for i:=0;i<len(c.circles);i++ {
 		c.circles[i].onKeyDown(key)
 	}
 }
 
 type GameLayout struct {
-	cx float32
-	cy float32
+	cx float64
+	cy float64
 }
 
 func (l *GameLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-	return fyne.NewSize(l.cx, l.cy)
+	return fyne.NewSize(float32(l.cx), float32(l.cy))
 }
 
 func (l *GameLayout) Layout(objects []fyne.CanvasObject, containerSize fyne.Size) {
 
 }
 
-func NewGameLayout(cx float32,cy float32) (*GameLayout) {
+func NewGameLayout(cx float64,cy float64) (*GameLayout) {
 	return &GameLayout{cx : cx, cy : cy }
 }
 
 func (c *box) loadUI(app fyne.App) {
 
 	// make new window
-	var cx float32 = 600
-	var cy float32 = 300
+	var cx float64 = 600
+	var cy float64 = 300
 	c.window = app.NewWindow("Box")
 	c.game = container.New(NewGameLayout(cx,cy))
 	c.window.SetContent(container.New(layout.NewVBoxLayout(),c.game))
@@ -189,7 +251,7 @@ func (c *box) loadUI(app fyne.App) {
 		ground := world.CreateBody(&bd)
 
 		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(0.0, 300.0), box2d.MakeB2Vec2(600.0, 300.0))
+		shape.Set(box2d.MakeB2Vec2(0.0, cy), box2d.MakeB2Vec2(cx, cy))
 		ground.CreateFixture(&shape, 0.0)
 	}
 	{
@@ -197,7 +259,7 @@ func (c *box) loadUI(app fyne.App) {
 		ground := world.CreateBody(&bd)
 
 		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(600.0, 300.0), box2d.MakeB2Vec2(600.0, 0.0))
+		shape.Set(box2d.MakeB2Vec2(cx, cy), box2d.MakeB2Vec2(cx, 0.0))
 		ground.CreateFixture(&shape, 0.0)
 	}
 	{
@@ -205,7 +267,7 @@ func (c *box) loadUI(app fyne.App) {
 		ground := world.CreateBody(&bd)
 
 		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(600.0, 0.0), box2d.MakeB2Vec2(0.0, 0.0))
+		shape.Set(box2d.MakeB2Vec2(cx, 0.0), box2d.MakeB2Vec2(0.0, 0.0))
 		ground.CreateFixture(&shape, 0.0)
 	}
 	{
@@ -213,7 +275,7 @@ func (c *box) loadUI(app fyne.App) {
 		ground := world.CreateBody(&bd)
 
 		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(0.0, 0.0), box2d.MakeB2Vec2(0.0, 300.0))
+		shape.Set(box2d.MakeB2Vec2(0.0, 0.0), box2d.MakeB2Vec2(0.0, cy))
 		ground.CreateFixture(&shape, 0.0)
 	}
 
@@ -226,59 +288,29 @@ func (c *box) loadUI(app fyne.App) {
 
 	// Circle character
 	{
-		bd := box2d.MakeB2BodyDef()
-		bd.Position.Set(30.0, 50.0)
-		bd.Type = box2d.B2BodyType.B2_dynamicBody
-		bd.FixedRotation = true
-		bd.AllowSleep = false
+		circle := NewCircle(&world,10,30.0,50.0)
+		circle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
+		circle.Color(red,0,red)
+		circle.setPad(3000000.0)
 
-		body := world.CreateBody(&bd)
-
-		shape := box2d.MakeB2CircleShape()
-		shape.M_radius = 10
-
-		fd := box2d.MakeB2FixtureDef()
-		fd.Shape = &shape
-		fd.Density = 20.0
-		fd.Restitution = 0.97
-		body.CreateFixtureFromDef(&fd)
-
-		c.circle = NewCircle(10,30.0,50.0,body)
-		c.circle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
-		c.game.Add(c.circle.circle)
-		c.circle.Color(red,0,red)
-		c.circle.Refresh()
-		c.circle.pad = 3000000.0
+		c.addPlayer(circle)
 	}
 
-	// Circles character
-	if (c.circles == nil) {
-		c.circles = make([]*Circle,0)
-	}
-	for i:=0;i<10;i++ {
-		bd := box2d.MakeB2BodyDef()
-		bd.Position.Set(50.0+20.0*float64(i), 50.0)
-		bd.Type = box2d.B2BodyType.B2_dynamicBody
-		bd.FixedRotation = true
-		bd.AllowSleep = false
+	// Other orbs
+	count:=10
+	xb := cx/2
+	yb := cy/2
+	for i:=0;i<count;i++ {
+		alpha := ((float64)(i))*2*math.Pi/(float64)(count)
+		dxb := math.Cos(alpha) // length 1
+		dyb := math.Sin(alpha) // length 1
+		bx := xb+cx*dxb/10
+		by := yb+cx*dyb/10
 
-		body := world.CreateBody(&bd)
+		circle := NewCircle(&world,10,bx,by)
+		circle.setPad(3000000.0)
 
-		shape := box2d.MakeB2CircleShape()
-		shape.M_radius = 10
-
-		fd := box2d.MakeB2FixtureDef()
-		fd.Shape = &shape
-		fd.Density = 20.0
-		fd.Restitution = 0.97
-		body.CreateFixtureFromDef(&fd)
-
-		circle := NewCircle(10,130.0+20*float64(i),50.0,body)
-		c.game.Add(circle.circle)
-		circle.Refresh()
-		circle.pad = 3000000.0
-
-		c.circles = append(c.circles,circle)
+		c.addPlayer(circle)
 	}
 
 
