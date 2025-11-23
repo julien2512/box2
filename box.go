@@ -38,6 +38,27 @@ func MakeCircleBody(world *box2d.B2World,x float64,y float64,r float64) (*box2d.
 	return body
 }
 
+func MakeRectangleBody(world *box2d.B2World,x float64,y float64,hx float64,hy float64) (*box2d.B2Body) {
+	bd := box2d.MakeB2BodyDef()
+	bd.Position.Set(x,y)
+	bd.Type = box2d.B2BodyType.B2_dynamicBody
+	bd.FixedRotation = true
+	bd.AllowSleep = false
+
+	body := world.CreateBody(&bd)
+
+	shape := box2d.MakeB2PolygonShape()
+	shape.SetAsBox(hx,hy)
+	
+	fd := box2d.MakeB2FixtureDef()
+	fd.Shape = &shape
+	fd.Density = 20.0
+	fd.Restitution = 0.97
+	body.CreateFixtureFromDef(&fd)
+
+	return body
+}
+
 type iPlayer interface {
 	getPad() float64
 	setPad(pad float64)
@@ -139,6 +160,13 @@ type Circle struct {
 	r float64
 }
 
+func (c *Circle) Refresh() {
+	c.x = c.body.GetPosition().X-c.r
+	c.y = c.body.GetPosition().Y-c.r
+
+	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
+}
+
 func (c *Circle) Color(color color.Color, wb float32, wc color.Color) {
 	var circle *canvas.Circle
 	circle = (c.object).(*canvas.Circle)
@@ -161,6 +189,46 @@ func NewCircle(world *box2d.B2World,size float64,xb float64, yb float64) *Circle
 	circle.body = body
 
 	return circle
+}
+
+type Rectangle struct {
+	Player
+	x float64
+	y float64
+	hx float64
+	hy float64
+}
+
+func (c *Rectangle) Refresh() {
+	c.x = c.body.GetPosition().X-c.hx/2
+	c.y = c.body.GetPosition().Y-c.hy/2
+
+	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
+}
+
+func (c *Rectangle) Color(color color.Color, wb float32, wc color.Color) {
+	var rectangle *canvas.Rectangle
+	rectangle = (c.object).(*canvas.Rectangle)
+	rectangle.FillColor = color
+	rectangle.StrokeWidth = wb
+	rectangle.StrokeColor = wc
+}
+
+func NewRectangle(world *box2d.B2World,hx float64,hy float64,x float64, y float64) *Rectangle {
+	rectangle := &Rectangle{}
+	rectangle.pad = 1
+	rectangle.hx = hx
+	rectangle.hy = hy
+	rectangle.x = x
+	rectangle.y = y
+	
+	rectangle.object = canvas.NewRectangle(color.Black)
+	rectangle.object.Resize(fyne.NewSize(float32(hx),float32(hy)))
+	
+	body := MakeRectangleBody(world,x,y,hx/2,hy/2)
+	rectangle.body = body
+	
+	return rectangle
 }
 
 type box struct {
@@ -288,7 +356,7 @@ func (c *box) loadUI(app fyne.App) {
 
 	// Circle character
 	{
-		circle := NewCircle(&world,10,30.0,50.0)
+		circle := NewCircle(&world,10,30.0,30.0)
 		circle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
 		circle.Color(red,0,red)
 		circle.setPad(3000000.0)
@@ -296,16 +364,26 @@ func (c *box) loadUI(app fyne.App) {
 		c.addPlayer(circle)
 	}
 
+	// Rectangle character
+	{
+		rectangle := NewRectangle(&world,50.0,50.0,100,30.0)
+		rectangle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
+		rectangle.Color(red,0,red)
+		rectangle.setPad(300000000.0)
+
+		c.addPlayer(rectangle)
+	}
+
 	// Other orbs
-	count:=10
+	count:=20
 	xb := cx/2
 	yb := cy/2
 	for i:=0;i<count;i++ {
 		alpha := ((float64)(i))*2*math.Pi/(float64)(count)
 		dxb := math.Cos(alpha) // length 1
 		dyb := math.Sin(alpha) // length 1
-		bx := xb+cx*dxb/10
-		by := yb+cx*dyb/10
+		bx := xb+cx*dxb/8
+		by := yb+cx*dyb/8
 
 		circle := NewCircle(&world,10,bx,by)
 		circle.setPad(3000000.0)
