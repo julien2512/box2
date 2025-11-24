@@ -304,8 +304,8 @@ func NewGameLayout(cx float64,cy float64) (*GameLayout) {
 func (c *box) loadUI(app fyne.App) {
 
 	// make new window
-	var cx float64 = 600
-	var cy float64 = 300
+	var cx float64 = 800
+	var cy float64 = 600
 	c.window = app.NewWindow("Box")
 	c.game = container.New(NewGameLayout(cx,cy))
 	c.window.SetContent(container.New(layout.NewVBoxLayout(),c.game))
@@ -324,29 +324,29 @@ func (c *box) loadUI(app fyne.App) {
 	red  := color.NRGBA{R: 0xff, G: 0x33, B: 0x33, A: 0xff}
 	blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
 	//yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
-	//green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
+	green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
 
 	// Ground character
 	{
-		rectangle := NewRectangle(&world,1,300,0,150)
+		rectangle := NewRectangle(&world,1,cy,0,cy/2)
 		rectangle.Color(blue,0,blue)
 		rectangle.setType(box2d.B2BodyType.B2_staticBody)
 		c.addPlayer(rectangle)
 	}
 	{
-		rectangle := NewRectangle(&world,1,300,600,150)
+		rectangle := NewRectangle(&world,1,cy,cx,cy/2)
 		rectangle.Color(blue,0,blue)
 		rectangle.setType(box2d.B2BodyType.B2_staticBody)
 		c.addPlayer(rectangle)
 	}
 	{
-		rectangle := NewRectangle(&world,600,1,300,0)
+		rectangle := NewRectangle(&world,cx,1,cx/2,0)
 		rectangle.Color(blue,0,blue)
 		rectangle.setType(box2d.B2BodyType.B2_staticBody)
 		c.addPlayer(rectangle)
 	}
 	{
-		rectangle := NewRectangle(&world,600,1,300,300)
+		rectangle := NewRectangle(&world,cx,1,cx/2,cy)
 		rectangle.Color(blue,0,blue)
 		rectangle.setType(box2d.B2BodyType.B2_staticBody)
 		c.addPlayer(rectangle)
@@ -354,15 +354,36 @@ func (c *box) loadUI(app fyne.App) {
 
 	// Static Center
 	{
-		circle := NewCircle(&world,30,300,150)
+		circle := NewCircle(&world,30,cx/2,cy/2)
 		circle.Color(blue,0,blue)
 		circle.setType(box2d.B2BodyType.B2_staticBody)
 		c.addPlayer(circle)
 	}
 
-	// Circle character
+	// Circle character Player 1
 	{
-		circle := NewCircle(&world,10,30.0,30.0)
+		circle := NewCircle(&world,10,30.0,cy/2)
+		circle.CanMove(fyne.KeyS,fyne.KeyZ,fyne.KeyQ,fyne.KeyD)
+		circle.Color(green,0,green)
+		circle.setPad(3000000.0)
+
+		c.addPlayer(circle)
+	}
+
+	// Rectangle character Player 1
+	{
+		rectangle := NewRectangle(&world,50.0,50.0,100,cy/2)
+		rectangle.CanMove(fyne.KeyS,fyne.KeyZ,fyne.KeyQ,fyne.KeyD)
+		rectangle.Color(green,0,green)
+		rectangle.setPad(300000000.0)
+
+		c.addPlayer(rectangle)
+	}
+
+
+	// Circle character Player 2
+	{
+		circle := NewCircle(&world,10,cx-30,cy/2)
 		circle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
 		circle.Color(red,0,red)
 		circle.setPad(3000000.0)
@@ -370,9 +391,9 @@ func (c *box) loadUI(app fyne.App) {
 		c.addPlayer(circle)
 	}
 
-	// Rectangle character
+	// Rectangle character Player 2
 	{
-		rectangle := NewRectangle(&world,50.0,50.0,100,30.0)
+		rectangle := NewRectangle(&world,50.0,50.0,cx-100,cy/2)
 		rectangle.CanMove(fyne.KeyDown,fyne.KeyUp,fyne.KeyLeft,fyne.KeyRight)
 		rectangle.Color(red,0,red)
 		rectangle.setPad(300000000.0)
