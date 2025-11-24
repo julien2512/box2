@@ -311,6 +311,7 @@ func (c *box) loadUI(app fyne.App) {
 	c.window.SetContent(container.New(layout.NewVBoxLayout(),c.game))
 	c.window.Content().Refresh()
 	c.window.Show()
+	c.window.SetFixedSize(true)
 
 	// Define the gravity vector.
 	gravity := box2d.MakeB2Vec2(0.0, 0.0)
