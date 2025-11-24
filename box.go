@@ -72,6 +72,7 @@ type iPlayer interface {
 	Move(position fyne.Position)
 	getObject() fyne.CanvasObject
 	getBody() *box2d.B2Body
+	setType(bodytype uint8)
 }
 
 type Player struct {
@@ -88,6 +89,10 @@ type Player struct {
 	body *box2d.B2Body
 
 	object fyne.CanvasObject
+}
+
+func (c *Player) setType(bodytype uint8) {
+	c.body.SetType(bodytype)
 }
 
 func (c *Player) getBody() *box2d.B2Body {
@@ -313,46 +318,46 @@ func (c *box) loadUI(app fyne.App) {
 	// Construct a world object, which will hold and simulate the rigid bodies.
 	world := box2d.MakeB2World(gravity)
 
-	// Ground body
-	{
-		bd := box2d.MakeB2BodyDef()
-		ground := world.CreateBody(&bd)
-
-		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(0.0, cy), box2d.MakeB2Vec2(cx, cy))
-		ground.CreateFixture(&shape, 0.0)
-	}
-	{
-		bd := box2d.MakeB2BodyDef()
-		ground := world.CreateBody(&bd)
-
-		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(cx, cy), box2d.MakeB2Vec2(cx, 0.0))
-		ground.CreateFixture(&shape, 0.0)
-	}
-	{
-		bd := box2d.MakeB2BodyDef()
-		ground := world.CreateBody(&bd)
-
-		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(cx, 0.0), box2d.MakeB2Vec2(0.0, 0.0))
-		ground.CreateFixture(&shape, 0.0)
-	}
-	{
-		bd := box2d.MakeB2BodyDef()
-		ground := world.CreateBody(&bd)
-
-		shape := box2d.MakeB2EdgeShape()
-		shape.Set(box2d.MakeB2Vec2(0.0, 0.0), box2d.MakeB2Vec2(0.0, cy))
-		ground.CreateFixture(&shape, 0.0)
-	}
-
 	// setup colors
 	//gray := color.Gray{Y: 0x99}
 	red  := color.NRGBA{R: 0xff, G: 0x33, B: 0x33, A: 0xff}
-	//blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
+	blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
 	//yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
 	//green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
+
+	// Ground character
+	{
+		rectangle := NewRectangle(&world,1,300,0,150)
+		rectangle.Color(blue,0,blue)
+		rectangle.setType(box2d.B2BodyType.B2_staticBody)
+		c.addPlayer(rectangle)
+	}
+	{
+		rectangle := NewRectangle(&world,1,300,600,150)
+		rectangle.Color(blue,0,blue)
+		rectangle.setType(box2d.B2BodyType.B2_staticBody)
+		c.addPlayer(rectangle)
+	}
+	{
+		rectangle := NewRectangle(&world,600,1,300,0)
+		rectangle.Color(blue,0,blue)
+		rectangle.setType(box2d.B2BodyType.B2_staticBody)
+		c.addPlayer(rectangle)
+	}
+	{
+		rectangle := NewRectangle(&world,600,1,300,300)
+		rectangle.Color(blue,0,blue)
+		rectangle.setType(box2d.B2BodyType.B2_staticBody)
+		c.addPlayer(rectangle)
+	}
+
+	// Static Center
+	{
+		circle := NewCircle(&world,30,300,150)
+		circle.Color(blue,0,blue)
+		circle.setType(box2d.B2BodyType.B2_staticBody)
+		c.addPlayer(circle)
+	}
 
 	// Circle character
 	{
