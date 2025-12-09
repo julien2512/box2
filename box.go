@@ -418,9 +418,14 @@ func (c *box) loadUI(app fyne.App) {
 	score2 := canvas.NewText("P2 Score : 0", color.Black)
 	scoreLayout := container.New(layout.NewHBoxLayout(), score1, layout.NewSpacer(), score2)
 
+	// make help layout
+	help1 := canvas.NewText("P1 : Z Q S D", color.Black)
+	help2 := canvas.NewText("P2 : up left down right", color.Black)
+	helpLayout := container.New(layout.NewHBoxLayout(), help1, layout.NewSpacer(), help2)
+
 	// Make game layout
 	c.game = container.New(NewGameLayout(cx,cy))
-	c.window.SetContent(container.New(layout.NewVBoxLayout(),scoreLayout,c.game))
+	c.window.SetContent(container.New(layout.NewVBoxLayout(),scoreLayout,c.game,helpLayout))
 	c.window.Content().Refresh()
 	c.window.Show()
 	c.window.SetFixedSize(true)
