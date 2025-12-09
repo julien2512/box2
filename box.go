@@ -168,6 +168,7 @@ func (c *Player) Refresh() {
 	c.y = c.body.GetPosition().Y
 
 	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
+	c.object.Refresh()
 }
 
 func (c *Player) Move(position fyne.Position) {
@@ -222,6 +223,7 @@ func (c *Circle) Refresh() {
 	c.y = c.body.GetPosition().Y-c.r
 
 	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
+	c.object.Refresh()
 }
 
 func (c *Circle) Color(color color.Color, wb float32, wc color.Color) {
@@ -261,6 +263,7 @@ func (c *Rectangle) Refresh() {
 	c.y = c.body.GetPosition().Y-c.hy/2
 
 	c.object.Move(fyne.NewPos(float32(c.x),float32(c.y)))
+	c.object.Refresh()
 }
 
 func (c *Rectangle) Color(color color.Color, wb float32, wc color.Color) {
@@ -435,6 +438,7 @@ func (c *box) loadUI(app fyne.App) {
 	blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
 	yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
 	green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
+	purple := color.NRGBA{R: 0x9d, G: 0x00, B: 0xff, A: 0xff}
 
 	// Goal character Player 1
 	{
@@ -446,9 +450,15 @@ func (c *box) loadUI(app fyne.App) {
 		c.addPlayer(rectangle)
 
 		rectangle.onPlayerOn = func(pl iPlayer){ 
+			pl.Color(purple,0,purple)
+			pl.Refresh()
 			c.score2 = c.score2+1
 			score2.Text = "P2 Score :"+strconv.Itoa(c.score2)
 			score2.Refresh()
+		}
+		rectangle.onPlayerOut = func(pl iPlayer){ 
+			pl.Color(color.Black,0,color.Black)
+			pl.Refresh()
 		}
 	}
 
@@ -462,9 +472,15 @@ func (c *box) loadUI(app fyne.App) {
 		c.addPlayer(rectangle)
 
 		rectangle.onPlayerOn = func(pl iPlayer){ 
+			pl.Color(purple,0,purple)
+			pl.Refresh()
 			c.score1 = c.score1+1
 			score1.Text = "P1 Score :"+strconv.Itoa(c.score1)
 			score1.Refresh()
+		}
+		rectangle.onPlayerOut = func(pl iPlayer){ 
+			pl.Color(color.Black,0,color.Black)
+			pl.Refresh()
 		}
 	}
 
