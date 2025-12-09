@@ -7,6 +7,7 @@ import (
 	"image/color"
 //	"fmt"
 	"math"
+	"strconv"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -73,6 +74,16 @@ type iPlayer interface {
 	getObject() fyne.CanvasObject
 	getBody() *box2d.B2Body
 	setType(bodytype uint8)
+	setSensor(sensor bool)
+	getSensor() bool
+	setUserData(data interface{})
+	setKind(kind uint8)
+	getKind() uint8
+
+	setOnPlayerOn(method func (player iPlayer))
+	setOnPlayerOut(method func (player iPlayer))
+	getOnPlayerOn() func (iPlayer)
+	getOnPlayerOut() func (iPlayer)
 }
 
 type Player struct {
@@ -86,13 +97,54 @@ type Player struct {
 	leftKey	fyne.KeyName
 	rightKey fyne.KeyName
 
+	kind uint8
+
 	body *box2d.B2Body
 
 	object fyne.CanvasObject
+
+	onPlayerOn func (pl iPlayer)
+	onPlayerOut func (pl iPlayer)
+}
+
+func (c *Player) setOnPlayerOn(method func (player iPlayer)) {
+	c.onPlayerOn = method
+}
+
+func (c *Player) setOnPlayerOut(method func (player iPlayer)) {
+	c.onPlayerOut = method
+}
+
+func (c *Player) getOnPlayerOn() func (player iPlayer) {
+	return c.onPlayerOn
+}
+
+func (c *Player) getOnPlayerOut() func (player iPlayer) {
+	return c.onPlayerOut
+}
+
+func (c *Player) setSensor(sensor bool) {
+	c.body.GetFixtureList().SetSensor(sensor)
+}
+
+func (c *Player) getSensor() bool {
+	return c.body.GetFixtureList().IsSensor()
 }
 
 func (c *Player) setType(bodytype uint8) {
 	c.body.SetType(bodytype)
+}
+
+func (c *Player) setUserData(data interface{}) {
+	c.body.SetUserData(data)
+}
+
+func (c *Player) setKind(kind uint8) {
+	c.kind = kind
+}
+
+func (c *Player) getKind() uint8 {
+	return c.kind
 }
 
 func (c *Player) getBody() *box2d.B2Body {
@@ -301,14 +353,71 @@ func NewGameLayout(cx float64,cy float64) (*GameLayout) {
 	return &GameLayout{cx : cx, cy : cy }
 }
 
+func (c *box) BeginContact(contact box2d.B2ContactInterface) {
+	fix1 := contact.GetFixtureA()
+	fix2 := contact.GetFixtureB()
+
+	if (fix1.GetBody().GetUserData() == nil || fix2.GetBody().GetUserData() == nil) {
+		return
+	}
+
+	player1 := (fix1.GetBody().GetUserData()).(iPlayer)
+	player2 := (fix2.GetBody().GetUserData()).(iPlayer)
+
+	if (player1.getSensor()) {
+		if (player2.getKind()==BALL) {
+			if (player1.getOnPlayerOn() != nil) {
+				player1.getOnPlayerOn()(player2)
+			}
+		}
+	}
+}
+
+func (c *box) EndContact(contact box2d.B2ContactInterface) {
+	fix1 := contact.GetFixtureA()
+	fix2 := contact.GetFixtureB()
+
+	if (fix1.GetBody().GetUserData() == nil || fix2.GetBody().GetUserData() == nil) {
+		return
+	}
+
+	player1 := (fix1.GetBody().GetUserData()).(iPlayer)
+	player2 := (fix2.GetBody().GetUserData()).(iPlayer)
+
+	if (player1.getSensor()) {
+		if (player2.getKind()==BALL) {
+			if (player1.getOnPlayerOut() != nil) {
+				player1.getOnPlayerOut()(player2)
+			}
+		}
+	}
+}
+
+func (c *box) PreSolve(contact box2d.B2ContactInterface, oldManifold box2d.B2Manifold) {
+
+}
+
+func (c *box) PostSolve(contact box2d.B2ContactInterface, impulse *box2d.B2ContactImpulse) {
+
+}
+
+const BALL = 1
+
 func (c *box) loadUI(app fyne.App) {
 
 	// make new window
 	var cx float64 = 800
 	var cy float64 = 600
 	c.window = app.NewWindow("Box")
+
+	// make score layout
+	score1 := canvas.NewText("P1 Score : 0", color.Black)
+	score2 := canvas.NewText("P2 Score : 0", color.Black)
+	scoreLayout := container.New(layout.NewHBoxLayout(), score1, layout.NewSpacer(), score2)
+
+	// Make game layout
 	c.game = container.New(NewGameLayout(cx,cy))
-	c.window.SetContent(container.New(layout.NewVBoxLayout(),c.game))
+	c.window.SetContent(container.New(layout.NewVBoxLayout(),scoreLayout,c.game))
 	c.window.Content().Refresh()
 	c.window.Show()
 	c.window.SetFixedSize(true)
@@ -318,13 +427,46 @@ func (c *box) loadUI(app fyne.App) {
 
 	// Construct a world object, which will hold and simulate the rigid bodies.
 	world := box2d.MakeB2World(gravity)
+	world.SetContactListener(c)
 
 	// setup colors
 	//gray := color.Gray{Y: 0x99}
 	red  := color.NRGBA{R: 0xff, G: 0x33, B: 0x33, A: 0xff}
 	blue := color.NRGBA{R: 0x33, G: 0x33, B: 0xff, A: 0xff}
-	//yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
+	yellow := color.NRGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
 	green := color.NRGBA{R: 0x00, G: 0xff, B: 0x00, A: 0xff}
+
+	// Goal character Player 1
+	{
+		rectangle := NewRectangle(&world,30.0,cy-10,20.0,cy/2)
+		rectangle.Color(yellow,0,yellow)
+		rectangle.setSensor(true)
+		rectangle.setUserData(rectangle)
+
+		c.addPlayer(rectangle)
+
+		rectangle.onPlayerOn = func(pl iPlayer){ 
+			c.score2 = c.score2+1
+			score2.Text = "P2 Score :"+strconv.Itoa(c.score2)
+			score2.Refresh()
+		}
+	}
+
+	// Goal character Player 2
+	{
+		rectangle := NewRectangle(&world,30.0,cy-10,cx-20.0,cy/2)
+		rectangle.Color(yellow,0,yellow)
+		rectangle.setSensor(true)
+		rectangle.setUserData(rectangle)
+
+		c.addPlayer(rectangle)
+
+		rectangle.onPlayerOn = func(pl iPlayer){ 
+			c.score1 = c.score1+1
+			score1.Text = "P1 Score :"+strconv.Itoa(c.score1)
+			score1.Refresh()
+		}
+	}
 
 	// Ground character
 	{
@@ -414,6 +556,8 @@ func (c *box) loadUI(app fyne.App) {
 
 		circle := NewCircle(&world,10,bx,by)
 		circle.setPad(3000000.0)
+		circle.setUserData(circle)
+		circle.setKind(BALL)
 
 		c.addPlayer(circle)
 	}
@@ -445,6 +589,7 @@ func (c *box) loadUI(app fyne.App) {
             				case <-update.C:
                 				world.Step(timeStep, velocityIterations, positionIterations)
 
+						
             				case <-ticker.C:
 						c.Refresh()
             				}
